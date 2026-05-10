@@ -45,6 +45,10 @@ const els = {
   app:           $("app"),
   video:         $("camera"),
   start:         $("start-btn"),
+  galleryBtn:    $("gallery-btn"),
+  floatingGallery: $("floating-gallery-btn"),
+  fileInput:     $("file-input"),
+  diagnostics:   $("diagnostics"),
   welcome:       $("welcome"),
   camError:      $("cam-error"),
   libStatus:     $("lib-status"),
@@ -156,15 +160,114 @@ function setConn(on, label) {
   els.connLabel.textContent = label;
 }
 
+// ── Environment diagnostics ──────────────────────────────────
+/**
+ * Detect why the camera prompt may not appear *before* the user even
+ * taps "Включить камеру". Browsers reject getUserMedia silently on
+ * insecure origins (no prompt, no error visible to the user) — we
+ * surface the cause explicitly so it's not "broken with no message".
+ */
+function detectIssues() {
+  const issues = [];
+
+  if (!window.isSecureContext) {
+    issues.push({
+      title: "Сайт открыт без HTTPS",
+      detail:
+        "Браузер блокирует камеру в небезопасном контексте. " +
+        "Откройте страницу через https:// (например, GitHub Pages выдаёт HTTPS по умолчанию).",
+    });
+  }
+  if (!navigator.mediaDevices?.getUserMedia) {
+    issues.push({
+      title: "Нет MediaDevices API",
+      detail:
+        "Этот браузер не поддерживает getUserMedia. " +
+        "Используйте Chrome/Safari/Samsung Internet актуальной версии.",
+    });
+  }
+  if (window.self !== window.top) {
+    issues.push({
+      title: "Страница открыта во встроенном фрейме",
+      detail:
+        'Родительский фрейм должен явно разрешить камеру: <iframe allow="camera">. ' +
+        "Откройте сайт в обычной вкладке браузера.",
+    });
+  }
+  if (location.protocol === "file:") {
+    issues.push({
+      title: "Открыто как локальный файл (file://)",
+      detail:
+        "Браузеры запрещают камеру при открытии файлом. Запустите статический сервер " +
+        "(`python -m http.server` / `npx serve`) либо опубликуйте на GitHub Pages.",
+    });
+  }
+
+  return issues;
+}
+
+function renderDiagnostics() {
+  const issues = detectIssues();
+  if (!issues.length) {
+    els.diagnostics.hidden = true;
+    els.diagnostics.innerHTML = "";
+    return;
+  }
+  els.diagnostics.hidden = false;
+  const items = issues
+    .map((i) => `<li><b>${escapeHtml(i.title)}.</b> ${escapeHtml(i.detail)}</li>`)
+    .join("");
+  els.diagnostics.innerHTML =
+    `Камера может не работать по одной из причин:<ul>${items}</ul>` +
+    "Тем временем можно загрузить фото из галереи — конвейер тот же.";
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 // ── Camera ---------------------------------------------------
+function formatCameraError(e) {
+  if (!e) return "Не удалось включить камеру.";
+  switch (e.name) {
+    case "NotAllowedError":
+    case "SecurityError":
+      return window.isSecureContext
+        ? "Доступ к камере запрещён. Разрешите его в настройках сайта в браузере и обновите страницу."
+        : "Браузер запретил камеру: страница не открыта по HTTPS.";
+    case "NotFoundError":
+    case "OverconstrainedError":
+      return "Подходящая камера не найдена. Попробуйте другую вкладку/браузер.";
+    case "NotReadableError":
+      return "Камера занята другим приложением. Закройте его и попробуйте снова.";
+    case "AbortError":
+      return "Запуск камеры прерван. Повторите попытку.";
+    case "TypeError":
+      return "Браузер не поддерживает MediaDevices API.";
+    default:
+      return e.message ? `Ошибка камеры: ${e.message}` : `Ошибка камеры: ${e.name ?? "unknown"}`;
+  }
+}
+
 async function startCamera() {
   els.camError.textContent = "";
   if (!navigator.mediaDevices?.getUserMedia) {
-    els.camError.textContent = "Браузер не поддерживает камеру.";
+    els.camError.textContent = "Браузер не поддерживает MediaDevices API.";
     return false;
   }
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
+  if (!window.isSecureContext) {
+    els.camError.textContent =
+      "Камера заблокирована: страница открыта без HTTPS. " +
+      "Используйте https://… либо загружайте фото из галереи.";
+    return false;
+  }
+
+  // Cascade: rich → environment-only → any video. Many phones reject
+  // strict frameRate/size constraints; the relaxed fallbacks succeed.
+  const cascades = [
+    {
       audio: false,
       video: {
         facingMode: { ideal: "environment" },
@@ -172,31 +275,51 @@ async function startCamera() {
         height: { ideal: 1080 },
         frameRate: { ideal: 30 },
       },
-    });
-    state.stream = stream;
-    state.track  = stream.getVideoTracks()[0];
+    },
+    { audio: false, video: { facingMode: { ideal: "environment" } } },
+    { audio: false, video: true },
+  ];
 
+  let lastError = null;
+  for (const constraints of cascades) {
     try {
-      const caps = state.track.getCapabilities?.() ?? {};
-      if (caps.focusMode?.includes?.("continuous")) {
-        await state.track.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
-      }
-      state.torchSupported = !!caps.torch;
-      els.torch.hidden = !state.torchSupported;
-    } catch { /* capability probing is optional */ }
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      state.stream = stream;
+      state.track  = stream.getVideoTracks()[0];
 
-    els.video.srcObject = stream;
-    els.video.playsInline = true;
-    els.video.muted = true;
-    await els.video.play();
-    return true;
-  } catch (e) {
-    const msg = e?.name === "NotAllowedError" ? "Доступ к камере запрещён." :
-                e?.name === "NotFoundError"   ? "Камера не найдена." :
-                (e?.message ?? String(e));
-    els.camError.textContent = msg;
-    return false;
+      try {
+        const caps = state.track.getCapabilities?.() ?? {};
+        if (caps.focusMode?.includes?.("continuous")) {
+          await state.track.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
+        }
+        state.torchSupported = !!caps.torch;
+        els.torch.hidden = !state.torchSupported;
+      } catch { /* capability probing is optional */ }
+
+      els.video.srcObject = stream;
+      els.video.playsInline = true;
+      els.video.muted = true;
+      await els.video.play();
+      return true;
+    } catch (e) {
+      lastError = e;
+      // OverconstrainedError → try a more relaxed cascade
+      if (e?.name === "OverconstrainedError" || e?.name === "ConstraintNotSatisfiedError") {
+        continue;
+      }
+      // NotAllowed / Security / NotFound → retrying won't help
+      if (
+        e?.name === "NotAllowedError" ||
+        e?.name === "SecurityError" ||
+        e?.name === "NotFoundError"
+      ) {
+        break;
+      }
+    }
   }
+
+  els.camError.textContent = formatCameraError(lastError);
+  return false;
 }
 
 function stopCamera() {
@@ -754,6 +877,7 @@ function showSuccess() {
   const meta = state.bestDecodeMeta;
   const ais = meta.parsed.ais;
   els.sheetConf.textContent = `${(state.bestConfidence * 100).toFixed(0)}%`;
+  els.rescanBtn.textContent = state.stream ? "Сканировать ещё раз" : "Назад";
   els.sheetMeta.innerHTML = "";
   const rows = [];
   if (ais["01"]) rows.push(["GTIN", ais["01"]]);
@@ -785,7 +909,116 @@ function resetForRescan() {
   els.framesLabel.textContent = "0f";
   els.latencyLabel.textContent = "";
   els.confidence.textContent = "";
-  setState("SCANNING");
+  // If we got here from gallery (no live camera), go back to welcome.
+  setState(state.stream ? "SCANNING" : "IDLE");
+}
+
+// ── Still image pipeline (gallery / file picker) ─────────────
+/**
+ * Process a single still image (camera roll, gallery, or capture).
+ * Tries multiple scales because Data Matrix decode is sensitive to
+ * module size — a 12 MP photo with a small symbol decodes at 1600px
+ * but not 800px, while a tight macro of the same symbol decodes at
+ * 800px but not 1600px.
+ */
+async function processStillImage(file) {
+  if (!file) return;
+
+  if (!state.libsReady) {
+    flashHint("Загрузка библиотек, подождите…", 1800);
+    await loadLibs();
+  }
+  if (!state.libsReady) {
+    flashHint("Не удалось загрузить декодер", 2200);
+    return;
+  }
+
+  setState("PROCESSING");
+  els.framesLabel.textContent = "1f";
+  els.confidence.textContent = "Обработка фото…";
+
+  let bitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+  } catch (e) {
+    console.error("createImageBitmap failed", e);
+    flashHint("Не удалось открыть изображение", 2000);
+    setState(state.stream ? "SCANNING" : "IDLE");
+    return;
+  }
+
+  const t0 = performance.now();
+  const scales = [1600, 1280, 1000, 800, 600];
+  let decoded = null;
+  let usedScale = 0;
+
+  try {
+    for (const scale of scales) {
+      const rgba = bitmapToImageData(bitmap, scale);
+      const variants = buildVariants(rgba);
+      // Generous budget for stills — user explicitly chose this image.
+      decoded = await decodeVariants(variants, performance.now() + 3000);
+      if (decoded) {
+        usedScale = scale;
+        break;
+      }
+    }
+  } finally {
+    bitmap.close?.();
+  }
+
+  const dt = performance.now() - t0;
+  els.latencyLabel.textContent = `${dt | 0}ms`;
+
+  if (!decoded) {
+    flashHint("Data Matrix не распознан на этом фото", 2400);
+    els.confidence.textContent = "";
+    setState(state.stream ? "SCANNING" : "IDLE");
+    return;
+  }
+
+  const parsed = parseGS1(decoded.bytes);
+  const gs1Valid = isChestnyZnak(parsed);
+
+  let regen;
+  try {
+    regen = await regenerate(decoded.bytes);
+  } catch (e) {
+    console.error("regen error", e);
+    flashHint("Не удалось пересобрать код", 2200);
+    setState(state.stream ? "SCANNING" : "IDLE");
+    return;
+  }
+  if (!regen.ok) {
+    flashHint("Регенерация: " + regen.reason, 2200);
+    setState(state.stream ? "SCANNING" : "IDLE");
+    return;
+  }
+
+  state.bestPayload = decoded.bytes;
+  state.bestConfidence = scoreConfidence({
+    frames: 2,                  // single still ≈ 2 confirming reads
+    variantName: decoded.variantName,
+    gs1Valid,
+    focus: 250,                 // assume OK; user picked it
+  });
+  state.bestDecodeMeta = {
+    decoder: "zxing-wasm (still)",
+    pipeline: `${decoded.variantName}@${usedScale}`,
+    sharpness: 250,
+    gs1Valid,
+    parsed,
+    durationMs: dt | 0,
+    framesAgree: 1,
+  };
+  state.bestRegen = { canvas: regen.canvas, payloadUtf8: tryUtf8(decoded.bytes) };
+  showSuccess();
+}
+
+function pickFile() {
+  // Reset value so picking the same file twice fires `change` again.
+  els.fileInput.value = "";
+  els.fileInput.click();
 }
 
 // ── POS display rendering -----------------------------------
@@ -859,14 +1092,37 @@ window.addEventListener("resize", () => {
 // ── Wire up DOM events ---------------------------------------
 els.start.addEventListener("click", async () => {
   els.start.disabled = true;
+  els.galleryBtn.disabled = true;
   if (!state.libsReady) await loadLibs();
   const ok = await startCamera();
-  if (!ok) { els.start.disabled = false; return; }
+  if (!ok) {
+    els.start.disabled = false;
+    els.galleryBtn.disabled = false;
+    return;
+  }
   setState("CAMERA_READY");
   await acquireWakeLock();
   setState("SCANNING");
+  els.floatingGallery.hidden = false;
   startFrameLoop();
   els.start.disabled = false;
+  els.galleryBtn.disabled = false;
+});
+
+els.galleryBtn.addEventListener("click", () => { pickFile(); });
+els.floatingGallery.addEventListener("click", () => { pickFile(); });
+
+els.fileInput.addEventListener("change", async (ev) => {
+  const file = ev.target.files?.[0];
+  if (!file) return;
+  // Pause live scanning while we process the still — avoids two
+  // results racing into the success sheet at once.
+  state.loopBusy = true;
+  try {
+    await processStillImage(file);
+  } finally {
+    state.loopBusy = false;
+  }
 });
 
 els.torch.addEventListener("click", () => { void toggleTorch(); });
@@ -899,4 +1155,5 @@ if ("serviceWorker" in navigator) {
 
 // ── Boot -----------------------------------------------------
 setState("IDLE");
+renderDiagnostics();
 loadLibs();

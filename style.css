@@ -120,6 +120,19 @@ html, body {
 }
 .torch-btn[aria-pressed="true"] { background: var(--accent); color: #000; }
 
+.floating-btn {
+  position: absolute;
+  top: max(56px, calc(env(safe-area-inset-top) + 48px));
+  left: 14px; z-index: 6;
+  width: 48px; height: 48px;
+  border: none; border-radius: 50%;
+  background: rgba(0,0,0,0.55); color: white;
+  font-size: 20px; line-height: 1;
+  display: grid; place-items: center;
+  cursor: pointer;
+}
+.floating-btn:active { background: rgba(0,0,0,0.75); }
+
 /* ── welcome (IDLE) ──────────────────────────────────── */
 .welcome {
   position: absolute; inset: 0; z-index: 10;
@@ -132,9 +145,27 @@ html, body {
 }
 .welcome h1 { margin: 0; font-size: 26px; font-weight: 600; }
 .welcome p  { margin: 0; max-width: 480px; color: var(--muted); font-size: 14px; line-height: 1.5; }
-.welcome .btn { width: 100%; max-width: 480px; }
-.error-msg { color: var(--danger); font-family: var(--mono); font-size: 12px; min-height: 1em; }
-.lib-status { color: var(--muted); font-family: var(--mono); font-size: 11px; min-height: 1em; }
+.welcome-actions {
+  display: flex; flex-direction: column; gap: 8px;
+  width: 100%; max-width: 480px;
+}
+.welcome .btn { width: 100%; }
+.error-msg  { color: var(--danger); font-family: var(--mono); font-size: 12px; min-height: 1em; max-width: 480px; text-align: left; }
+.lib-status { color: var(--muted);  font-family: var(--mono); font-size: 11px; min-height: 1em; }
+
+.diagnostics {
+  width: 100%; max-width: 480px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font: 12px/1.4 var(--mono);
+  color: #fecaca;
+  text-align: left;
+}
+.diagnostics ul { margin: 4px 0 0 18px; padding: 0; }
+.diagnostics li { margin: 2px 0; }
+.diagnostics b  { color: #fff; font-weight: 600; }
 
 #app[data-state="IDLE"] .welcome { display: flex; }
 #app[data-state="IDLE"] .reticle,

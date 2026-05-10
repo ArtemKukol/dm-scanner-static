@@ -40,17 +40,22 @@
         <div class="confidence" id="confidence"></div>
       </div>
 
-      <button id="torch-btn" class="torch-btn" aria-label="torch" aria-pressed="false" hidden>☀</button>
+      <button id="torch-btn"   class="torch-btn"   aria-label="torch"   aria-pressed="false" hidden>☀</button>
+      <button id="floating-gallery-btn" class="floating-btn" aria-label="open gallery" hidden>🖼</button>
 
       <!-- IDLE / start -->
       <section class="welcome" id="welcome">
         <h1>DM Recovery Scanner</h1>
         <p>
           Восстановление повреждённых Data Matrix кодов «Честный ЗНАК».
-          Наведите камеру на код — браузер прочитает его и покажет
-          чистую копию для кассового сканера.
+          Наведите камеру на код или загрузите фото — браузер прочитает
+          его и покажет чистую копию для кассового сканера.
         </p>
-        <button id="start-btn" class="btn btn-accent">Включить камеру</button>
+        <div id="diagnostics" class="diagnostics" hidden></div>
+        <div class="welcome-actions">
+          <button id="start-btn"   class="btn btn-accent">Включить камеру</button>
+          <button id="gallery-btn" class="btn btn-neutral">Выбрать фото из галереи</button>
+        </div>
         <div id="cam-error" class="error-msg" role="alert"></div>
         <div id="lib-status" class="lib-status"></div>
       </section>
@@ -92,6 +97,9 @@
   <canvas id="work-canvas" hidden></canvas>
   <canvas id="regen-canvas" hidden></canvas>
   <canvas id="verify-canvas" hidden></canvas>
+
+  <!-- Hidden file input — triggered by gallery buttons -->
+  <input id="file-input" type="file" accept="image/*" hidden />
 
   <script type="module" src="app.js"></script>
 </body>
