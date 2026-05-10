@@ -1,0 +1,27 @@
+{
+  "name": "DM Recovery Scanner",
+  "short_name": "DM Scanner",
+  "description": "Восстановление повреждённых Data Matrix кодов «Честный ЗНАК» прямо в браузере",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "lang": "ru",
+  "categories": ["utilities", "productivity"],
+  "icons": [
+    {
+      "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='32' fill='%230a0a0a'/><g fill='%23ff7a00'><rect x='32' y='32' width='16' height='16'/><rect x='64' y='32' width='16' height='16'/><rect x='112' y='32' width='16' height='16'/><rect x='144' y='32' width='16' height='16'/><rect x='32' y='64' width='16' height='16'/><rect x='96' y='64' width='16' height='16'/><rect x='128' y='64' width='16' height='16'/><rect x='48' y='96' width='16' height='16'/><rect x='80' y='96' width='16' height='16'/><rect x='144' y='96' width='16' height='16'/><rect x='32' y='128' width='16' height='16'/><rect x='64' y='128' width='16' height='16'/><rect x='112' y='128' width='16' height='16'/><rect x='32' y='160' width='16' height='16'/><rect x='48' y='160' width='16' height='16'/><rect x='80' y='160' width='16' height='16'/><rect x='112' y='160' width='16' height='16'/><rect x='128' y='160' width='16' height='16'/><rect x='144' y='160' width='16' height='16'/></g></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='96' fill='%230a0a0a'/><g fill='%23ff7a00'><rect x='80' y='80' width='48' height='48'/><rect x='176' y='80' width='48' height='48'/><rect x='320' y='80' width='48' height='48'/><rect x='400' y='80' width='48' height='48'/><rect x='80' y='176' width='48' height='48'/><rect x='272' y='176' width='48' height='48'/><rect x='368' y='176' width='48' height='48'/><rect x='128' y='272' width='48' height='48'/><rect x='224' y='272' width='48' height='48'/><rect x='400' y='272' width='48' height='48'/><rect x='80' y='368' width='48' height='48'/><rect x='176' y='368' width='48' height='48'/><rect x='320' y='368' width='48' height='48'/><rect x='80' y='432' width='48' height='48'/><rect x='128' y='432' width='48' height='48'/><rect x='224' y='432' width='48' height='48'/><rect x='320' y='432' width='48' height='48'/><rect x='368' y='432' width='48' height='48'/><rect x='400' y='432' width='48' height='48'/></g></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
